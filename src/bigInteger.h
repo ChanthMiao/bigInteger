@@ -19,8 +19,22 @@ typedef struct bigInteger
     seg_t *value;
 } big_integer;
 
-#ifdef BIG_INTEGER_ADVANCED_USER
+extern const seg_nums_t seg_nums_zero;
+extern const seg_t seg_t_zero;
+
+#define MAX_SEGMETS_LEN (seg_nums_zero - 1ul)
+#define SEG_MEM_WIDTH sizeof(seg_t)
+#define SEGMENT_WIDTH (SEG_MEM_WIDTH / 2ul)
+#define STR_SEG_WIDTH (SEGMENT_WIDTH * 2ul)
+#define SEG_BITS_WIDTH (8ul * SEGMENT_WIDTH)
+#define SEGMENT_MOD (seg_t)(1ul << SEG_BITS_WIDTH)
+#define POSITIVE 0ul
+#define NEGATIVE 1ul
+#define STATIC_BUF_BITS_LEN 4096ul
+#define STATIC_BUF_SEG_LEN (seg_nums_t)(STATIC_BUF_BITS_LEN / 8ul / SEGMENT_WIDTH)
+
 //The following fuction are dangerous.
+/********************************************************************************************************************************************************************************/
 seg_nums_t big_integer_init_from_chars_noalloc(big_integer *const dst, const char *const src, seg_t *const buf, const seg_nums_t total_len);
 seg_nums_t big_integer_init_from_chars(big_integer *const dst, const char *const src);
 seg_nums_t big_integer_init_from_bytes_noalloc(big_integer *const dst, const void *const src, size_t bytes, seg_t *const buf, const seg_nums_t total_len);
@@ -39,7 +53,8 @@ seg_nums_t big_integer_mod_u_noalloc(big_integer *const dst, const big_integer *
 seg_nums_t big_integer_mod_noalloc(big_integer *const dst, const big_integer *const a, const big_integer *const b, const seg_nums_t total_seg);
 seg_nums_t big_integer_exp_u_noalloc(big_integer *const dst, const big_integer *const a, const big_integer *const b, const big_integer *const mod, const seg_nums_t total_seg);
 seg_nums_t big_integer_exp_noalloc(big_integer *const dst, const big_integer *const a, const big_integer *const b, const big_integer *const mod, const seg_nums_t total_seg);
-#endif
+/*******************************************************************************************************************************************************************************/
+
 
 int big_integer_is_valid(const big_integer *const data);
 seg_nums_t big_integer_init(big_integer *const dst, const void *const src, const char mode, size_t bytes);
@@ -60,5 +75,6 @@ big_integer big_integer_mod(const big_integer *const a, const big_integer *const
 big_integer big_integer_exp_u(const big_integer *const a, const big_integer *const b, const big_integer *const mod);
 big_integer big_integer_exp(const big_integer *const a, const big_integer *const b, const big_integer *const mod);
 seg_nums_t big_integer_increase(big_integer *const a, const big_integer *const b);
+seg_nums_t big_integer_to_str(char *const dst, const big_integer *const obj, size_t str_len);
 
 #endif
