@@ -380,6 +380,8 @@ seg_nums_t big_integer_mul_u_noalloc(big_integer *const dst, const big_integer *
         x = *a;
         y = *b;
     }
+    (dst->used_segments) = (a->used_segments) + (b->used_segments);
+    memset(dst->value, 0, (dst->used_segments) * SEG_MEM_WIDTH);
     seg_t tmp;
     seg_t *seg_ptr_x = x.value;
     seg_t *seg_ptr_y = y.value;
@@ -395,15 +397,13 @@ seg_nums_t big_integer_mul_u_noalloc(big_integer *const dst, const big_integer *
         for (; seg_ptr_x < border_x; seg_ptr_x++)
         {
             tmp = (*seg_ptr_x) * (*seg_ptr_y) + carry;
-            *seg_ptr_rt += tmp;
+            tmp += (*seg_ptr_rt);
             carry = tmp / SEGMENT_MOD;
-            *seg_ptr_rt %= SEGMENT_MOD;
+            *seg_ptr_rt = tmp % SEGMENT_MOD;
             seg_ptr_rt++;
         }
         *seg_ptr_rt = (carry) ? carry : seg_t_zero;
     }
-
-    (dst->used_segments) = (a->used_segments) + (b->used_segments);
 
     while ((dst->value)[(dst->used_segments - 1ul)] == seg_t_zero && (dst->used_segments) > 1ul)
     {
@@ -536,32 +536,6 @@ seg_nums_t big_integer_div_u_noalloc(big_integer *const dst, const big_integer *
             int tmp_rt = big_integer_comp_u(&copy_a, b);
             big_integer_add_u_noalloc(dst, dst, &guess_this_cycle, total_seg);
         }
-        write(STDOUT_FILENO, "e ~ d / b = ", 12ul);
-        big_integer_write(STDOUT_FILENO, dst);
-        write(STDOUT_FILENO, "\n", sizeof(char));
-        seg_t left = 0;
-        seg_t right = SEGMENT_MOD;
-        guess_this_cycle.used_segments = 1ul;
-        int comp_u_rt;
-        while (left + 1ul < right)
-        {
-            *(guess_this_cycle.value) = (left + right) / 2ul;
-            big_integer_mul_u_noalloc(&buf, b, &guess_this_cycle, buf.total_segments);
-            comp_u_rt = big_integer_comp_u(&copy_a, &buf);
-            if (comp_u_rt > 0)
-            {
-                left = *(guess_this_cycle.value);
-            }
-            else if (comp_u_rt < 0)
-            {
-                right = *(guess_this_cycle.value);
-            }   
-            else
-            {
-                left = right = *(guess_this_cycle.value);
-            }
-        }
-        big_integer_add_u_noalloc(dst, dst, &guess_this_cycle, total_seg);
         if ((a->total_segments) >= STATIC_BUF_SEG_LEN)
         {
             big_integer_destory(&copy_a);
