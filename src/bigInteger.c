@@ -9,10 +9,16 @@
 
 const seg_nums_t seg_nums_zero = 0ul;
 const seg_t seg_t_zero = 0ul;
-
+/*shared_buf_1~3, only for div operation*/
 static seg_t shared_buf_1[STATIC_BUF_SEG_LEN];
 static seg_t shared_buf_2[STATIC_BUF_SEG_LEN];
 static seg_t shared_buf_3[STATIC_BUF_SEG_LEN];
+/*shared_buf_4~5, only for exp_mod operation*/
+static seg_t shared_buf_4[STATIC_BUF_SEG_LEN];
+static seg_t shared_buf_5[STATIC_BUF_SEG_LEN];
+/*shared_buf_4~5, only for mod operation*/
+static seg_t shared_buf_6[STATIC_BUF_SEG_LEN];
+static seg_t shared_buf_7[STATIC_BUF_SEG_LEN];
 
 seg_nums_t big_integer_init_from_chars_noalloc(big_integer *const dst, const char *const src, seg_t *const buf, const seg_nums_t total_len)
 {
@@ -69,7 +75,7 @@ seg_nums_t big_integer_init_from_chars_noalloc(big_integer *const dst, const cha
 
 seg_nums_t big_integer_init_from_chars(big_integer *const dst, const char *const src)
 {
-    (dst->total_segments) = strlen(src) / STR_SEG_WIDTH + 1ul;
+    (dst->total_segments) = strlen(src) / STR_SEG_WIDTH + 2ul;
     (dst->value) = (seg_t *)calloc(dst->total_segments, SEG_MEM_WIDTH);
     return big_integer_init_from_chars_noalloc(dst, src, dst->value, (dst->total_segments));
 }
@@ -107,6 +113,7 @@ seg_nums_t big_integer_init_from_bytes_noalloc(big_integer *const dst, const voi
 seg_nums_t big_integer_init_from_bytes(big_integer *const dst, const void *const src, size_t bytes)
 {
     (dst->total_segments) = (bytes / SEGMENT_WIDTH) + ((bytes % SEGMENT_WIDTH) ? 1ul : seg_nums_zero);
+    (dst->total_segments) += 2ul;
     (dst->value) = (seg_t *)calloc((dst->total_segments), SEG_MEM_WIDTH);
     return big_integer_init_from_bytes_noalloc(dst, src, bytes, dst->value, (dst->total_segments));
 }
@@ -134,8 +141,8 @@ big_integer big_integer_copy(const big_integer *const src, seg_t *const buf, con
     rt.used_segments = (src->used_segments);
     if (buf == NULL)
     {
-        rt.value = (seg_t *)calloc(rt.used_segments, SEG_MEM_WIDTH);
-        rt.total_segments = rt.used_segments;
+        rt.total_segments = rt.used_segments + 2ul;
+        rt.value = (seg_t *)calloc((rt.total_segments), SEG_MEM_WIDTH);
     }
     else
     {
@@ -252,6 +259,7 @@ big_integer big_integer_add_u(const big_integer *const a, const big_integer *con
 {
     big_integer rt;
     rt.total_segments = ((a->used_segments) < (b->used_segments)) ? (b->used_segments) + 1ul : (a->used_segments) + 1ul;
+    (rt.total_segments) += 2ul;
     rt.value = (seg_t *)calloc(rt.total_segments, SEG_MEM_WIDTH);
     big_integer_add_u_noalloc(&rt, a, b, rt.total_segments);
     return rt;
@@ -353,6 +361,7 @@ big_integer big_integer_sub_u(const big_integer *const a, const big_integer *con
 {
     big_integer rt;
     rt.total_segments = ((a->used_segments) < (b->used_segments)) ? (b->used_segments) : (a->used_segments);
+    (rt.total_segments) += 1ul;
     rt.value = (seg_t *)calloc(rt.total_segments, SEG_MEM_WIDTH);
     big_integer_sub_u_noalloc(&rt, a, b, rt.total_segments);
     big_integer_shrink(&rt);
@@ -389,9 +398,9 @@ seg_nums_t big_integer_mul_u_noalloc(big_integer *const dst, const big_integer *
     seg_t *border_x = x.value + x.used_segments;
     seg_t *seg_ptr_rt = (dst->value);
     seg_t carry = 0ul;
-    seg_t outer_carry = 0ul;
     for (; seg_ptr_y < border_y; seg_ptr_y++)
     {
+        carry = 0ul;
         seg_ptr_rt = (dst->value) + (seg_ptr_y - y.value);
         seg_ptr_x = x.value;
         for (; seg_ptr_x < border_x; seg_ptr_x++)
@@ -431,6 +440,7 @@ big_integer big_integer_mul_u(const big_integer *const a, const big_integer *con
 {
     big_integer rt;
     rt.total_segments = (a->used_segments) + (b->used_segments);
+    (rt.total_segments) += 1ul;
     rt.value = (seg_t *)calloc(rt.total_segments, SEG_MEM_WIDTH);
     big_integer_mul_u_noalloc(&rt, a, b, rt.total_segments);
     big_integer_shrink(&rt);
@@ -472,6 +482,8 @@ seg_nums_t big_integer_div_u_noalloc(big_integer *const dst, const big_integer *
         }
         else
         {
+            buf.total_segments = (a->used_segments) + 2ul;
+            guess_this_cycle.total_segments = (a->used_segments) + 2ul;
             copy_a = big_integer_copy(a, NULL, 0);
             buf.value = (seg_t *)calloc(buf.total_segments, SEG_MEM_WIDTH);
             guess_this_cycle.value = (seg_t *)calloc(guess_this_cycle.total_segments, SEG_MEM_WIDTH);
@@ -487,6 +499,7 @@ seg_nums_t big_integer_div_u_noalloc(big_integer *const dst, const big_integer *
         seg_t *border;
         seg_t *value_ptr_rt;
         seg_t carry;
+        //big_integer_comp_u(&copy_a, b) > -1
         while (big_integer_comp_u(&copy_a, b) > -1)
         {
             carry = seg_t_zero;
@@ -508,7 +521,6 @@ seg_nums_t big_integer_div_u_noalloc(big_integer *const dst, const big_integer *
                 value_ptr_rt--;
             }
             big_integer_mul_u_noalloc(&buf, b, &guess_this_cycle, buf.total_segments);
-            int tmp_rt_0 = big_integer_comp_u(&copy_a, &buf);
             if (big_integer_comp_u(&copy_a, &buf) == -1)
             {
                 carry = seg_t_zero;
@@ -531,12 +543,10 @@ seg_nums_t big_integer_div_u_noalloc(big_integer *const dst, const big_integer *
                 }
                 big_integer_mul_u_noalloc(&buf, b, &guess_this_cycle, buf.total_segments);
             }
-            int tmp_rt_1 = big_integer_comp_u(&copy_a, &buf);
             big_integer_sub_u_noalloc(&copy_a, &copy_a, &buf, copy_a.total_segments);
-            int tmp_rt = big_integer_comp_u(&copy_a, b);
             big_integer_add_u_noalloc(dst, dst, &guess_this_cycle, total_seg);
         }
-        if ((a->total_segments) >= STATIC_BUF_SEG_LEN)
+        if ((a->used_segments) >= STATIC_BUF_SEG_LEN)
         {
             big_integer_destory(&copy_a);
             big_integer_destory(&buf);
@@ -566,11 +576,11 @@ big_integer big_integer_div_u(const big_integer *const a, const big_integer *con
     int comp_u_rt = big_integer_comp_u(a, b);
     if (comp_u_rt == 1)
     {
-        rt.total_segments = (a->used_segments);
+        rt.total_segments = (a->used_segments) + 1ul;
     }
     else
     {
-        rt.total_segments = 1ul;
+        rt.total_segments = 2ul;
     }
     rt.value = (seg_t *)calloc(rt.total_segments, SEG_MEM_WIDTH);
     big_integer_div_u_noalloc(&rt, a, b, rt.total_segments);
@@ -582,7 +592,6 @@ seg_nums_t big_integer_mod_u_noalloc(big_integer *const dst, const big_integer *
 {
     (dst->flag) = POSITIVE;
     (dst->total_segments) = total_seg;
-    big_integer div_rt;
     int comp_u_div = big_integer_comp_u(a, b);
     if (comp_u_div < 0)
     {
@@ -600,16 +609,32 @@ seg_nums_t big_integer_mod_u_noalloc(big_integer *const dst, const big_integer *
     }
     else
     {
-        div_rt.total_segments = (a->used_segments);
-        div_rt.value = (seg_t *)calloc(div_rt.total_segments, SEG_MEM_WIDTH);
-        big_integer_div_u_noalloc(&div_rt, a, b, div_rt.total_segments);
         big_integer mul_rt;
-        mul_rt.total_segments = (a->used_segments);
-        mul_rt.value = (seg_t *)calloc(mul_rt.total_segments, SEG_MEM_WIDTH);
+        big_integer div_rt;
+        if ((a->used_segments) + 2ul < STATIC_BUF_SEG_LEN)
+        {
+            div_rt.total_segments = STATIC_BUF_SEG_LEN;
+            div_rt.value = shared_buf_6;
+            mul_rt.total_segments = STATIC_BUF_SEG_LEN;
+            mul_rt.value = shared_buf_7;
+            memset(shared_buf_6, 0, ((a->used_segments) + 2ul) * SEG_MEM_WIDTH);
+            memset(shared_buf_7, 0, ((a->used_segments) + 2ul) * SEG_MEM_WIDTH);
+        }
+        else
+        {
+            div_rt.total_segments = (a->used_segments) + 2ul;
+            div_rt.value = (seg_t *)calloc(div_rt.total_segments, SEG_MEM_WIDTH);
+            mul_rt.total_segments = (a->used_segments) + 2ul;
+            mul_rt.value = (seg_t *)calloc(mul_rt.total_segments, SEG_MEM_WIDTH);
+        }
+        big_integer_div_u_noalloc(&div_rt, a, b, div_rt.total_segments);
         big_integer_mul_u_noalloc(&mul_rt, b, &div_rt, mul_rt.total_segments);
         big_integer_sub_u_noalloc(dst, a, &mul_rt, total_seg);
-        big_integer_destory(&div_rt);
-        big_integer_destory(&mul_rt);
+        if ((a->used_segments) + 2ul >= STATIC_BUF_SEG_LEN)
+        {
+            big_integer_destory(&div_rt);
+            big_integer_destory(&mul_rt);
+        }
         return (dst->used_segments);
     }
 }
@@ -632,23 +657,23 @@ big_integer big_integer_mod_u(const big_integer *const a, const big_integer *con
     int comp_u_div = big_integer_comp_u(a, b);
     if (comp_u_div < 0)
     {
-        rt.value = (seg_t *)calloc((a->used_segments), SEG_MEM_WIDTH);
-        rt.total_segments = (a->used_segments);
+        rt.total_segments = (a->used_segments) + 1ul;
+        rt.value = (seg_t *)calloc((rt.total_segments), SEG_MEM_WIDTH);
         rt = big_integer_copy(a, rt.value, rt.total_segments);
         return rt;
     }
     else if (comp_u_div == 0)
     {
         rt.used_segments = 1ul;
-        rt.value = (seg_t *)calloc((a->used_segments), SEG_MEM_WIDTH);
-        rt.total_segments = 1ul;
+        rt.value = (seg_t *)calloc(2ul, SEG_MEM_WIDTH);
+        rt.total_segments = 2ul;
         *(rt.value) = seg_t_zero;
         return rt;
     }
     else
     {
-        rt.value = (seg_t *)calloc((b->used_segments), SEG_MEM_WIDTH);
-        rt.total_segments = (b->used_segments);
+        rt.total_segments = (b->used_segments) + 1ul;
+        rt.value = (seg_t *)calloc((b->total_segments), SEG_MEM_WIDTH);
         big_integer_mod_u_noalloc(&rt, a, b, rt.total_segments);
         big_integer_shrink(&rt);
         return rt;
@@ -671,8 +696,8 @@ seg_nums_t big_integer_exp_u_noalloc(big_integer *const dst, const big_integer *
         if (STATIC_BUF_SEG_LEN > (a->used_segments) && STATIC_BUF_SEG_LEN - (a->used_segments) > (a->used_segments))
         {
             guess.total_segments = STATIC_BUF_SEG_LEN;
-            guess = big_integer_copy(a, shared_buf_1, STATIC_BUF_SEG_LEN);
-            guess_this_cycle = big_integer_copy(a, shared_buf_2, STATIC_BUF_SEG_LEN);
+            guess = big_integer_copy(a, shared_buf_4, STATIC_BUF_SEG_LEN);
+            guess_this_cycle = big_integer_copy(a, shared_buf_5, STATIC_BUF_SEG_LEN);
         }
         else
         {
@@ -689,7 +714,7 @@ seg_nums_t big_integer_exp_u_noalloc(big_integer *const dst, const big_integer *
         {
             for (seg_bit = 0ul; seg_bit < SEG_BITS_WIDTH; seg_bit++)
             {
-                if (*((b->value) + curr_seg) & (mask << seg_bit))
+                if ((*((b->value) + curr_seg) & (mask << seg_bit)) != seg_t_zero)
                 {
                     big_integer_mul_u_noalloc(&guess_this_cycle, &guess, dst, guess_this_cycle.total_segments);
                     big_integer_mod_u_noalloc(dst, &guess_this_cycle, mod, total_seg);
@@ -711,7 +736,7 @@ seg_nums_t big_integer_exp_u_noalloc(big_integer *const dst, const big_integer *
                 big_integer_mod_u_noalloc(&guess, &guess_this_cycle, mod, guess.total_segments);
             }
         }
-        if (STATIC_BUF_SEG_LEN > (a->used_segments) && STATIC_BUF_SEG_LEN - (a->used_segments) > (a->used_segments))
+        if (STATIC_BUF_SEG_LEN <= (a->used_segments) || STATIC_BUF_SEG_LEN - (a->used_segments) <= (a->used_segments))
         {
             big_integer_destory(&guess);
             big_integer_destory(&guess_this_cycle);
@@ -721,6 +746,7 @@ seg_nums_t big_integer_exp_u_noalloc(big_integer *const dst, const big_integer *
 }
 seg_nums_t big_integer_exp_noalloc(big_integer *const dst, const big_integer *const a, const big_integer *const b, const big_integer *const mod, const seg_nums_t total_seg)
 {
+    //TODO:uncompleted, unavailable
     big_integer_exp_u_noalloc(dst, a, b, mod, total_seg);
     if ((b->used_segments) > seg_nums_zero && *(b->value) % 2ul == 1)
     {
@@ -738,6 +764,7 @@ seg_nums_t big_integer_init(big_integer *const dst, const void *const src, const
         break;
     case FROM_BYTES:
         big_integer_init_from_bytes(dst, src, bytes);
+        break;
     default:
         return 0;
     }
@@ -854,9 +881,8 @@ big_integer big_integer_div(const big_integer *const a, const big_integer *const
 big_integer big_integer_mod(const big_integer *const a, const big_integer *const b)
 {
     big_integer rt = big_integer_mod_u(a, b);
-    if (a->flag)
+    if (a->flag && (*(b->value) % 2ul) == 1ul)
     {
-        seg_nums_t len = ((a->used_segments) > (b->used_segments)) ? (a->total_segments) : (b->total_segments);
         big_integer re = big_integer_sub_u(b, &rt);
         big_integer_shrink(&re);
         big_integer_destory(&rt);
@@ -872,13 +898,13 @@ seg_nums_t big_integer_increase(big_integer *const a, const big_integer *const b
 {
     if ((a->used_segments) <= (b->used_segments))
     {
-        (a->value) = (seg_t *)realloc((a->value), (b->used_segments) + 1ul);
-        (a->total_segments) = (b->used_segments) + 1ul;
+        (a->total_segments) = (b->used_segments) + 2ul;
+        (a->value) = (seg_t *)realloc((a->value), (b->total_segments));
     }
     else
     {
-        (a->value) = (seg_t *)realloc((a->value), (a->used_segments) + 1ul);
-        (a->total_segments) = (a->used_segments) + 1ul;
+        (a->total_segments) = (a->used_segments) + 2ul;
+        (a->value) = (seg_t *)realloc((a->value), (a->total_segments));
     }
     seg_nums_t rt = big_integer_add_noalloc(a, a, b, (a->total_segments));
     big_integer_shrink(a);
@@ -888,7 +914,7 @@ seg_nums_t big_integer_increase(big_integer *const a, const big_integer *const b
 big_integer big_integer_exp_u(const big_integer *const a, const big_integer *const b, const big_integer *const mod)
 {
     big_integer rt;
-    rt.total_segments = (mod->total_segments) + 1ul;
+    rt.total_segments = (mod->total_segments) + 2ul;
     rt.value = (seg_t *)calloc(rt.total_segments, SEG_MEM_WIDTH);
     big_integer_exp_u_noalloc(&rt, a, b, mod, rt.total_segments);
     big_integer_shrink(&rt);
