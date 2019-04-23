@@ -15,17 +15,19 @@ int main(int argc, char *argv[])
     big_integer_write(STDOUT_FILENO, &sample1);
     write(STDOUT_FILENO, "\n", sizeof(char));
     big_integer sample2;
-    big_integer_init(&sample2, "-5FA7BD8EDDA2980C8EAC76", FROM_CHARS, 0);
+    big_integer_init(&sample2, "5FA7BD8EDDA2980C8EAC76", FROM_CHARS, 0);
     write(STDOUT_FILENO, "b = ", 4ul);
     big_integer_write(STDOUT_FILENO, &sample2);
     write(STDOUT_FILENO, "\n", sizeof(char));
+    
     big_integer sample3;
-    sample3.total_segments = 3ul;
+    sample3.total_segments = 4ul;
     sample3.value = (seg_t*)calloc(sample3.total_segments, SEG_MEM_WIDTH);
     big_integer_add_noalloc(&sample3, &sample1, &sample2, sample3.total_segments);
     write(STDOUT_FILENO, "c = a + b = ", 12ul);
     big_integer_write(STDOUT_FILENO, &sample3);
     write(STDOUT_FILENO, "\n", sizeof(char));
+    
     big_integer sample4;
     sample4.total_segments = 6ul;
     sample4.value = (seg_t*)calloc(sample4.total_segments, SEG_MEM_WIDTH);
@@ -33,6 +35,15 @@ int main(int argc, char *argv[])
     write(STDOUT_FILENO, "d = a * b = ", 12ul);
     big_integer_write(STDOUT_FILENO, &sample4);
     write(STDOUT_FILENO, "\n", sizeof(char));
+
+    big_integer sample6;
+    sample6.total_segments = 3ul;
+    sample6.value = (seg_t*)calloc(sample6.total_segments, SEG_MEM_WIDTH);
+    big_integer_sub_noalloc(&sample6, &sample3, &sample1, sample6.total_segments);
+    write(STDOUT_FILENO, "z = c - a = ", 12ul);
+    big_integer_write(STDOUT_FILENO, &sample6);
+    write(STDOUT_FILENO, "\n", sizeof(char));
+
     big_integer sample5;
     sample5.total_segments = 3ul;
     sample5.value = (seg_t*)calloc(sample5.total_segments, SEG_MEM_WIDTH);
