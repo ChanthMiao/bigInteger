@@ -427,7 +427,7 @@ seg_nums_t big_integer_mul_noalloc(big_integer *const dst, const big_integer *co
     rt = big_integer_mul_u_noalloc(dst, a, b, total_seg);
     if ((dst->used_segments) == 1ul && *(dst->value) == seg_t_zero)
     {
-        (dst->value) = POSITIVE;
+        (dst->flag = POSITIVE;
     }
     else
     {
@@ -746,11 +746,11 @@ seg_nums_t big_integer_exp_u_noalloc(big_integer *const dst, const big_integer *
 }
 seg_nums_t big_integer_exp_noalloc(big_integer *const dst, const big_integer *const a, const big_integer *const b, const big_integer *const mod, const seg_nums_t total_seg)
 {
-    //TODO:uncompleted, unavailable
     big_integer_exp_u_noalloc(dst, a, b, mod, total_seg);
     if ((b->used_segments) > seg_nums_zero && *(b->value) % 2ul == 1)
     {
         (dst->flag) = NEGATIVE;
+        big_integer_sub_u_noalloc(dst, mod, dst, total_seg);
     }
     return (dst->used_segments);
 }
